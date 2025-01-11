@@ -16,7 +16,7 @@ st.set_page_config(
 
 # Sidebar navigation
 st.sidebar.title("Sports Betting Tracker")
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Log a Bet", "Settings"])
+menu = st.sidebar.selectbox("Menu", ["Dashboard", "Log a Bet", "Edit/Delete a Bet", "Settings"])
 
 if menu == "Dashboard":
     st.title("Dashboard Overview")
@@ -232,6 +232,44 @@ elif menu == "Log a Bet":
                     }).execute()
 
                 st.success(f"Dutching Bet logged successfully! Maximum Profit/Loss: ${profit_loss:.2f}")
+
+elif menu == "Edit/Delete a Bet":
+    st.title("Edit or Delete a Bet")
+
+    # Fetch all bets
+    bets_response = supabase.table("bets").select("*").execute()
+    if bets_response.data:
+        bets_df = pd.DataFrame(bets_response.data)
+
+        # Select a bet to edit/delete
+        selected_bet = st.selectbox("Select a Bet to Edit/Delete", bets_df["id"])
+        bet_details = bets_df[bets_df["id"] == selected_bet].iloc[0]
+
+        # Display current details
+        st.write("Current Bet Details:")
+        st.write(bet_details)
+
+        # Edit fields
+        st.subheader("Edit Bet Details")
+        new_stake = st.number_input("Stake", value=bet_details["stake"], step=0.01, format="%.2f")
+        new_odds = st.number_input("Odds (decimal)", value=bet_details["odds"], step=0.01, format="%.2f")
+        new_commission = st.number_input("Commission (%)", value=bet_details["commission"], step=0.1, format="%.1f")
+        new_outcome = st.selectbox("Outcome", ["Pending", "Won", "Lost", "Void"], index=["Pending", "Won", "Lost", "Void"].index(bet_details["outcome"]))
+
+        # Update the bet
+        if st.button("Update Bet"):
+            supabase.table("bets").update({
+                "stake": new_stake,
+                "odds": new_odds,
+                "commission": new_commission,
+                "outcome": new_outcome
+            }).eq("id", selected_bet).execute()
+            st.success("Bet updated successfully!")
+
+        # Delete the bet
+        if st.button("Delete Bet"):
+            supabase.table("bets").delete().eq("id", selected_bet).execute()
+            st.success("Bet deleted successfully!")
 
 elif menu == "Settings":
     st.title("Settings")
