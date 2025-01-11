@@ -164,7 +164,12 @@ elif menu == "Log a Bet":
             # Submit Matched Bet
             if st.button("Submit Matched Bet"):
                 # Generate a unique ID for the matched bet
-                matched_bet_id = supabase.table("bets").select("MAX(id)").execute().data[0]["max"] + 1
+                max_id_response = supabase.table("bets").select("id").order("id", desc=True).limit(1).execute()
+                if max_id_response.data:
+                    matched_bet_id = max_id_response.data[0]["id"] + 1
+                else:
+                    matched_bet_id = 1  # Default to 1 if the table is empty
+
 
                 # Insert Back Bet
                 supabase.table("bets").insert({
