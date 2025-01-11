@@ -68,128 +68,151 @@ if menu == "Dashboard":
 elif menu == "Log a Bet":
     st.title("Log a Bet")
 
-    # Dropdown for selecting bet type
-    bet_type = st.selectbox("Bet Type", ["Regular", "Matched", "Dutching"])
+    # Fetch Sports and Sportsbooks from the database
+    sportsbooks = supabase.table("sportsbooks").select("id, name").execute().data
+    sports = supabase.table("sports").select("id, name").execute().data
 
-    # Regular Bet
-    if bet_type == "Regular":
-        st.subheader("Regular Bet")
+    if not sportsbooks or not sports:
+        st.error("Please add sportsbooks and sports in the Settings menu before logging bets!")
+    else:
+        sportsbook_map = {s['id']: s['name'] for s in sportsbooks}
+        sport_map = {s['id']: s['name'] for s in sports}
 
-        # Input fields for a regular bet
-        stake = st.number_input("Stake", min_value=0.0, step=0.01, format="%.2f")
-        odds = st.number_input("Odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
-        commission = st.number_input("Commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-        outcome = st.selectbox("Outcome", ["Pending", "Won", "Lost", "Void"])
+        # Dropdowns for selecting sportsbook and sport
+        selected_sportsbook = st.selectbox("Select Sportsbook", list(sportsbook_map.values()))
+        selected_sport = st.selectbox("Select Sport", list(sport_map.values()))
+        sportsbook_id = next(key for key, value in sportsbook_map.items() if value == selected_sportsbook)
+        sport_id = next(key for key, value in sport_map.items() if value == selected_sport)
 
-        # Calculate profit or loss
-        if st.button("Submit Regular Bet"):
-            profit_loss = 0.0
-            if outcome == "Won":
-                profit_loss = (stake * odds - stake) * (1 - commission / 100)
-            elif outcome == "Lost":
-                profit_loss = -stake
-            elif outcome == "Void":
+        # Dropdown for selecting bet type
+        bet_type = st.selectbox("Bet Type", ["Regular", "Matched", "Dutching"])
+
+        # Regular Bet
+        if bet_type == "Regular":
+            st.subheader("Regular Bet")
+
+            # Input fields for a regular bet
+            stake = st.number_input("Stake", min_value=0.0, step=0.01, format="%.2f")
+            odds = st.number_input("Odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
+            commission = st.number_input("Commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+            outcome = st.selectbox("Outcome", ["Pending", "Won", "Lost", "Void"])
+
+            # Calculate profit or loss
+            if st.button("Submit Regular Bet"):
                 profit_loss = 0.0
+                if outcome == "Won":
+                    profit_loss = (stake * odds - stake) * (1 - commission / 100)
+                elif outcome == "Lost":
+                    profit_loss = -stake
+                elif outcome == "Void":
+                    profit_loss = 0.0
 
-            # Insert the regular bet into the database
-            supabase.table("bets").insert({
-                "bet_type": "Regular",
-                "stake": stake,
-                "odds": odds,
-                "commission": commission,
-                "outcome": outcome,
-                "profit_loss": profit_loss
-            }).execute()
-            st.success(f"Regular Bet logged successfully! Profit/Loss: ${profit_loss:.2f}")
-
-    # Matched Bet
-    elif bet_type == "Matched":
-        st.subheader("Matched Bet")
-
-        # Back Bet (Bookie) section
-        st.subheader("Back Bet (Bookie)")
-        back_stake = st.number_input("Back stake", min_value=0.0, step=0.01, format="%.2f")
-        back_odds = st.number_input("Back odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
-        back_commission = st.number_input("Back commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-        stake_returned = st.checkbox("Stake returned", value=False)
-
-        # Lay Bet (Betting Exchange) section
-        st.subheader("Lay Bet (Betting Exchange)")
-        lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
-        lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-
-        # Calculate Lay Stake
-        if st.button("Calculate Lay Stake"):
-            lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
-            st.write(f"Calculated Lay Stake: **${lay_stake:.2f}**")
-
-            # Calculate Profit/Loss
-            back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
-            lay_liability = lay_stake * (lay_odds - 1)
-            lay_profit = lay_stake * (1 - lay_commission / 100)
-            net_profit = back_profit - lay_liability if lay_stake > 0 else 0.0
-            st.write(f"Net Profit: **${net_profit:.2f}**")
-
-        # Submit Matched Bet
-        if st.button("Submit Matched Bet"):
-            # Generate a unique ID for the matched bet
-            matched_bet_id = supabase.table("bets").select("MAX(id)").execute().data[0]["max"] + 1
-
-            # Insert Back Bet
-            supabase.table("bets").insert({
-                "matched_bet_id": matched_bet_id,
-                "bet_type": "Back",
-                "stake": back_stake,
-                "odds": back_odds,
-                "commission": back_commission,
-                "outcome": "Pending",
-                "profit_loss": net_profit  # Initially calculated here
-            }).execute()
-
-            # Insert Lay Bet
-            supabase.table("bets").insert({
-                "matched_bet_id": matched_bet_id,
-                "bet_type": "Lay",
-                "stake": lay_stake,
-                "odds": lay_odds,
-                "commission": lay_commission,
-                "outcome": "Pending",
-                "profit_loss": -lay_liability  # Initially negative liability
-            }).execute()
-
-            st.success("Matched Bet logged successfully!")
-
-    # Dutching
-    elif bet_type == "Dutching":
-        st.subheader("Dutching Bet")
-
-        # Input fields for multiple outcomes
-        outcomes = st.number_input("Number of Outcomes", min_value=1, step=1, value=2)
-        dutch_stakes = []
-        for i in range(outcomes):
-            st.write(f"Outcome {i + 1}")
-            odds = st.number_input(f"Odds for Outcome {i + 1} (decimal)", min_value=1.0, step=0.01, format="%.2f", key=f"odds_{i}")
-            stake = st.number_input(f"Stake for Outcome {i + 1}", min_value=0.0, step=0.01, format="%.2f", key=f"stake_{i}")
-            dutch_stakes.append((odds, stake))
-
-        # Calculate Dutching profit/loss
-        if st.button("Submit Dutching Bet"):
-            total_stake = sum(stake for _, stake in dutch_stakes)
-            max_profit = max((odds * stake - total_stake) for odds, stake in dutch_stakes)
-            profit_loss = max_profit
-
-            # Insert each outcome into the database
-            for i, (odds, stake) in enumerate(dutch_stakes):
+                # Insert the regular bet into the database
                 supabase.table("bets").insert({
-                    "bet_type": "Dutching",
+                    "sportsbook_id": sportsbook_id,
+                    "sport_id": sport_id,
+                    "bet_type": "Regular",
                     "stake": stake,
                     "odds": odds,
-                    "outcome": "Pending",
+                    "commission": commission,
+                    "outcome": outcome,
                     "profit_loss": profit_loss
                 }).execute()
+                st.success(f"Regular Bet logged successfully! Profit/Loss: ${profit_loss:.2f}")
 
-            st.success(f"Dutching Bet logged successfully! Maximum Profit/Loss: ${profit_loss:.2f}")
+        # Matched Bet
+        elif bet_type == "Matched":
+            st.subheader("Matched Bet")
 
+            # Back Bet (Bookie) section
+            st.subheader("Back Bet (Bookie)")
+            back_stake = st.number_input("Back stake", min_value=0.0, step=0.01, format="%.2f")
+            back_odds = st.number_input("Back odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
+            back_commission = st.number_input("Back commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+            stake_returned = st.checkbox("Stake returned", value=False)
+
+            # Lay Bet (Betting Exchange) section
+            st.subheader("Lay Bet (Betting Exchange)")
+            lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
+            lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+
+            # Calculate Lay Stake
+            if st.button("Calculate Lay Stake"):
+                lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
+                st.write(f"Calculated Lay Stake: **${lay_stake:.2f}**")
+
+                # Calculate Profit/Loss
+                back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
+                lay_liability = lay_stake * (lay_odds - 1)
+                lay_profit = lay_stake * (1 - lay_commission / 100)
+                net_profit = back_profit - lay_liability if lay_stake > 0 else 0.0
+                st.write(f"Net Profit: **${net_profit:.2f}**")
+
+            # Submit Matched Bet
+            if st.button("Submit Matched Bet"):
+                # Generate a unique ID for the matched bet
+                matched_bet_id = supabase.table("bets").select("MAX(id)").execute().data[0]["max"] + 1
+
+                # Insert Back Bet
+                supabase.table("bets").insert({
+                    "matched_bet_id": matched_bet_id,
+                    "sportsbook_id": sportsbook_id,
+                    "sport_id": sport_id,
+                    "bet_type": "Back",
+                    "stake": back_stake,
+                    "odds": back_odds,
+                    "commission": back_commission,
+                    "outcome": "Pending",
+                    "profit_loss": net_profit  # Initially calculated here
+                }).execute()
+
+                # Insert Lay Bet
+                supabase.table("bets").insert({
+                    "matched_bet_id": matched_bet_id,
+                    "sportsbook_id": sportsbook_id,
+                    "sport_id": sport_id,
+                    "bet_type": "Lay",
+                    "stake": lay_stake,
+                    "odds": lay_odds,
+                    "commission": lay_commission,
+                    "outcome": "Pending",
+                    "profit_loss": -lay_liability  # Initially negative liability
+                }).execute()
+
+                st.success("Matched Bet logged successfully!")
+
+        # Dutching
+        elif bet_type == "Dutching":
+            st.subheader("Dutching Bet")
+
+            # Input fields for multiple outcomes
+            outcomes = st.number_input("Number of Outcomes", min_value=1, step=1, value=2)
+            dutch_stakes = []
+            for i in range(outcomes):
+                st.write(f"Outcome {i + 1}")
+                odds = st.number_input(f"Odds for Outcome {i + 1} (decimal)", min_value=1.0, step=0.01, format="%.2f", key=f"odds_{i}")
+                stake = st.number_input(f"Stake for Outcome {i + 1}", min_value=0.0, step=0.01, format="%.2f", key=f"stake_{i}")
+                dutch_stakes.append((odds, stake))
+
+            # Calculate Dutching profit/loss
+            if st.button("Submit Dutching Bet"):
+                total_stake = sum(stake for _, stake in dutch_stakes)
+                max_profit = max((odds * stake - total_stake) for odds, stake in dutch_stakes)
+                profit_loss = max_profit
+
+                # Insert each outcome into the database
+                for i, (odds, stake) in enumerate(dutch_stakes):
+                    supabase.table("bets").insert({
+                        "sportsbook_id": sportsbook_id,
+                        "sport_id": sport_id,
+                        "bet_type": "Dutching",
+                        "stake": stake,
+                        "odds": odds,
+                        "outcome": "Pending",
+                        "profit_loss": profit_loss
+                    }).execute()
+
+                st.success(f"Dutching Bet logged successfully! Maximum Profit/Loss: ${profit_loss:.2f}")
 
 elif menu == "Settings":
     st.title("Settings")
