@@ -3,8 +3,8 @@ from supabase import create_client, Client
 import pandas as pd
 
 # Initialize Supabase
-SUPABASE_URL = "https://<your-supabase-url>.supabase.co"
-SUPABASE_KEY = "<your-supabase-key>"
+SUPABASE_URL = "https://xhjaflbwngmsslorehrk.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoamFmbGJ3bmdtc3Nsb3JlaHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY1NTU2MDEsImV4cCI6MjA1MjEzMTYwMX0.I_jsQ5GG650iPag2dFOgSFn1a-rx3vHu3CLx_JlfM7Q"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Sidebar navigation
