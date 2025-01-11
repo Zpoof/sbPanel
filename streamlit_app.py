@@ -8,7 +8,6 @@ SUPABASE_URL = "https://xhjaflbwngmsslorehrk.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhoamFmbGJ3bmdtc3Nsb3JlaHJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY1NTU2MDEsImV4cCI6MjA1MjEzMTYwMX0.I_jsQ5GG650iPag2dFOgSFn1a-rx3vHu3CLx_JlfM7Q"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
 # Page Config
 st.set_page_config(
     page_title="Sports Betting Tracker",
@@ -23,7 +22,7 @@ if menu == "Dashboard":
     st.title("Dashboard Overview")
 
     # Fetch data
-    bets_response = supabase.table("bets").select("*").execute()
+    bets_response = supabase.table("bets").select("*, sportsbooks(name), sports(name)").execute()
     if bets_response.data:
         df = pd.DataFrame(bets_response.data)
 
@@ -71,6 +70,8 @@ elif menu == "Log a Bet":
     # Fetch Sports and Sportsbooks from the database
     sportsbooks = supabase.table("sportsbooks").select("id, name").execute().data
     sports = supabase.table("sports").select("id, name").execute().data
+    criteria_response = supabase.table("bets").select("criteria").execute()
+    existing_criteria = list(set([item['criteria'] for item in criteria_response.data if item['criteria']]))
 
     if not sportsbooks or not sports:
         st.error("Please add sportsbooks and sports in the Settings menu before logging bets!")
@@ -78,9 +79,15 @@ elif menu == "Log a Bet":
         sportsbook_map = {s['id']: s['name'] for s in sportsbooks}
         sport_map = {s['id']: s['name'] for s in sports}
 
-        # Dropdowns for selecting sportsbook and sport
+        # Dropdowns for selecting sportsbook, sport, and criteria
         selected_sportsbook = st.selectbox("Select Sportsbook", list(sportsbook_map.values()))
         selected_sport = st.selectbox("Select Sport", list(sport_map.values()))
+        criteria = st.selectbox("Select or Enter Criteria", ["Enter New"] + existing_criteria)
+        if criteria == "Enter New":
+            criteria = st.text_input("Enter New Criteria")
+
+        event_name = st.text_input("Event Name")
+
         sportsbook_id = next(key for key, value in sportsbook_map.items() if value == selected_sportsbook)
         sport_id = next(key for key, value in sport_map.items() if value == selected_sport)
 
@@ -116,7 +123,9 @@ elif menu == "Log a Bet":
                     "odds": odds,
                     "commission": commission,
                     "outcome": outcome,
-                    "profit_loss": profit_loss
+                    "profit_loss": profit_loss,
+                    "event_name": event_name,
+                    "criteria": criteria
                 }).execute()
                 st.success(f"Regular Bet logged successfully! Profit/Loss: ${profit_loss:.2f}")
 
@@ -163,7 +172,9 @@ elif menu == "Log a Bet":
                     "odds": back_odds,
                     "commission": back_commission,
                     "outcome": "Pending",
-                    "profit_loss": net_profit  # Initially calculated here
+                    "profit_loss": net_profit,  # Initially calculated here
+                    "event_name": event_name,
+                    "criteria": criteria
                 }).execute()
 
                 # Insert Lay Bet
@@ -176,7 +187,9 @@ elif menu == "Log a Bet":
                     "odds": lay_odds,
                     "commission": lay_commission,
                     "outcome": "Pending",
-                    "profit_loss": -lay_liability  # Initially negative liability
+                    "profit_loss": -lay_liability,  # Initially negative liability
+                    "event_name": event_name,
+                    "criteria": criteria
                 }).execute()
 
                 st.success("Matched Bet logged successfully!")
@@ -209,7 +222,9 @@ elif menu == "Log a Bet":
                         "stake": stake,
                         "odds": odds,
                         "outcome": "Pending",
-                        "profit_loss": profit_loss
+                        "profit_loss": profit_loss,
+                        "event_name": event_name,
+                        "criteria": criteria
                     }).execute()
 
                 st.success(f"Dutching Bet logged successfully! Maximum Profit/Loss: ${profit_loss:.2f}")
@@ -247,4 +262,3 @@ elif menu == "Settings":
             st.success(f"{new_sport} added!")
             # Refresh the list
             existing_sports_names.append(new_sport.strip().lower())
-
