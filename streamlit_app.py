@@ -101,16 +101,34 @@ elif menu == "Log a Bet":
 elif menu == "Settings":
     st.title("Settings")
 
+    # Fetch existing sportsbooks and sports
+    existing_sportsbooks = supabase.table("sportsbooks").select("name").execute().data
+    existing_sports = supabase.table("sports").select("name").execute().data
+
+    existing_sportsbooks_names = [s["name"].lower() for s in existing_sportsbooks] if existing_sportsbooks else []
+    existing_sports_names = [s["name"].lower() for s in existing_sports] if existing_sports else []
+
     # Add a new sportsbook
     st.subheader("Add a Sportsbook")
     new_sportsbook = st.text_input("Sportsbook Name")
     if st.button("Add Sportsbook"):
-        supabase.table("sportsbooks").insert({"name": new_sportsbook}).execute()
-        st.success(f"{new_sportsbook} added!")
+        if new_sportsbook.strip().lower() in existing_sportsbooks_names:
+            st.error(f"{new_sportsbook} already exists!")
+        else:
+            supabase.table("sportsbooks").insert({"name": new_sportsbook.strip()}).execute()
+            st.success(f"{new_sportsbook} added!")
+            # Refresh the list
+            existing_sportsbooks_names.append(new_sportsbook.strip().lower())
 
     # Add a new sport
     st.subheader("Add a Sport")
     new_sport = st.text_input("Sport Name")
     if st.button("Add Sport"):
-        supabase.table("sports").insert({"name": new_sport}).execute()
-        st.success(f"{new_sport} added!")
+        if new_sport.strip().lower() in existing_sports_names:
+            st.error(f"{new_sport} already exists!")
+        else:
+            supabase.table("sports").insert({"name": new_sport.strip()}).execute()
+            st.success(f"{new_sport} added!")
+            # Refresh the list
+            existing_sports_names.append(new_sport.strip().lower())
+
