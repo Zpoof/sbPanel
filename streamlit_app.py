@@ -163,6 +163,14 @@ elif menu == "Log a Bet":
 
             # Submit Matched Bet
             if st.button("Submit Matched Bet"):
+
+                if 'net_profit' not in locals():
+                    back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
+                    lay_liability = editable_lay_stake * (lay_odds - 1)
+                    lay_profit = editable_lay_stake * (1 - lay_commission / 100)
+                    net_profit = back_profit - lay_liability if editable_lay_stake > 0 else 0.0
+
+ 
                 # Generate a unique ID for the matched bet
                 max_id_response = supabase.table("bets").select("id").order("id", desc=True).limit(1).execute()
                 if max_id_response.data:
