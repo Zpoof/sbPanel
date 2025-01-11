@@ -149,16 +149,16 @@ elif menu == "Log a Bet":
             lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
             lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
 
-            # Calculate Lay Stake
-            if st.button("Calculate Lay Stake"):
-                lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
-                st.write(f"Calculated Lay Stake: **${lay_stake:.2f}**")
+            # Calculate Lay Stake (Editable Field)
+            lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
+            editable_lay_stake = st.number_input("Lay stake (calculated or enter manually)", value=round(lay_stake, 2), step=0.01, format="%.2f")
 
-                # Calculate Profit/Loss
+            # Calculate Profit/Loss
+            if st.button("Calculate Profit/Loss"):
                 back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
-                lay_liability = lay_stake * (lay_odds - 1)
-                lay_profit = lay_stake * (1 - lay_commission / 100)
-                net_profit = back_profit - lay_liability if lay_stake > 0 else 0.0
+                lay_liability = editable_lay_stake * (lay_odds - 1)
+                lay_profit = editable_lay_stake * (1 - lay_commission / 100)
+                net_profit = back_profit - lay_liability if editable_lay_stake > 0 else 0.0
                 st.write(f"Net Profit: **${net_profit:.2f}**")
 
             # Submit Matched Bet
@@ -187,7 +187,7 @@ elif menu == "Log a Bet":
                     "sportsbook_id": lay_sportsbook_id,
                     "sport_id": sport_id,
                     "bet_type": "Lay",
-                    "stake": lay_stake,
+                    "stake": editable_lay_stake,
                     "odds": lay_odds,
                     "commission": lay_commission,
                     "outcome": "Pending",
