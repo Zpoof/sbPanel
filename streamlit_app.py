@@ -1,6 +1,7 @@
 import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
+import math
 
 # Initialize Supabase
 SUPABASE_URL = "https://xhjaflbwngmsslorehrk.supabase.co"
@@ -67,34 +68,49 @@ if menu == "Dashboard":
 elif menu == "Log a Bet":
     st.title("Log a Bet")
 
-    # Input form for logging a bet
-    sportsbooks = supabase.table("sportsbooks").select("id, name").execute().data
-    sports = supabase.table("sports").select("id, name").execute().data
+    # Input form for matched betting
+    bet_type = st.selectbox("Bet Type", ["Regular", "Matched", "Dutching"])
 
-    if sportsbooks and sports:
-        sportsbook = st.selectbox("Sportsbook", [s["name"] for s in sportsbooks])
-        sport = st.selectbox("Sport", [s["name"] for s in sports])
-        bet_type = st.selectbox("Bet Type", ["Regular", "Matched", "Dutching"])
-        stake = st.number_input("Stake", min_value=0.0, format="%.2f")
-        odds = st.number_input("Odds", min_value=1.0, format="%.3f")
-        outcome = st.selectbox("Outcome", ["Pending", "Won", "Lost", "Void"])
-        profit_loss = st.number_input("Profit/Loss", format="%.2f")
+    if bet_type == "Matched":
+        # Back Bet (Bookie) section
+        st.subheader("Back Bet (Bookie)")
+        back_stake = st.number_input("Back stake", min_value=0.0, step=0.01, format="%.2f")
+        back_odds = st.number_input("Back odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
+        back_commission = st.number_input("Back commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+        stake_returned = st.checkbox("Stake returned", value=False)
 
-        if st.button("Submit"):
-            sportsbook_id = next(s["id"] for s in sportsbooks if s["name"] == sportsbook)
-            sport_id = next(s["id"] for s in sports if s["name"] == sport)
-            
-            # Insert data into Supabase
+        # Lay Bet (Betting Exchange) section
+        st.subheader("Lay Bet (Betting Exchange)")
+        lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
+        lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
+        lay_stake = st.number_input("Lay stake (auto-calculated below)", min_value=0.0, step=0.01, format="%.2f", disabled=True)
+
+        # Button to calculate lay stake
+        if st.button("Calculate Lay Stake"):
+            # Formula to calculate lay stake
+            lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
+            st.write(f"Calculated Lay Stake: **${lay_stake:.2f}**")
+
+            # Calculate the net profit/loss
+            back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
+            lay_liability = lay_stake * (lay_odds - 1)
+            lay_profit = lay_stake * (1 - lay_commission / 100)
+            net_profit = back_profit - lay_liability if lay_stake > 0 else 0.0
+
+            # Display calculated profit/loss
+            st.write(f"Net Profit: **${net_profit:.2f}**")
+
+        # Allow submission of the matched bet
+        if st.button("Submit Matched Bet"):
+            # Save matched bet details to the database
             supabase.table("bets").insert({
-                "sportsbook_id": sportsbook_id,
-                "sport_id": sport_id,
-                "bet_type": bet_type,
-                "stake": stake,
-                "odds": odds,
-                "outcome": outcome,
-                "profit_loss": profit_loss
+                "bet_type": "Matched",
+                "stake": back_stake,
+                "odds": back_odds,
+                "outcome": "Pending",
+                "profit_loss": net_profit
             }).execute()
-            st.success("Bet logged successfully!")
+            st.success("Matched Bet logged successfully!")
     else:
         st.error("Please add sportsbooks and sports in the Settings menu first!")
 
