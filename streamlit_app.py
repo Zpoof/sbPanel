@@ -135,6 +135,8 @@ elif menu == "Log a Bet":
 
             # Back Bet (Bookie) section
             st.subheader("Back Bet (Bookie)")
+            selected_back_sportsbook = st.selectbox("Select Back Sportsbook", list(sportsbook_map.values()), key="back_sportsbook")
+            back_sportsbook_id = next(key for key, value in sportsbook_map.items() if value == selected_back_sportsbook)
             back_stake = st.number_input("Back stake", min_value=0.0, step=0.01, format="%.2f")
             back_odds = st.number_input("Back odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
             back_commission = st.number_input("Back commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
@@ -142,6 +144,8 @@ elif menu == "Log a Bet":
 
             # Lay Bet (Betting Exchange) section
             st.subheader("Lay Bet (Betting Exchange)")
+            selected_lay_sportsbook = st.selectbox("Select Lay Sportsbook", list(sportsbook_map.values()), key="lay_sportsbook")
+            lay_sportsbook_id = next(key for key, value in sportsbook_map.items() if value == selected_lay_sportsbook)
             lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
             lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
 
@@ -165,7 +169,7 @@ elif menu == "Log a Bet":
                 # Insert Back Bet
                 supabase.table("bets").insert({
                     "matched_bet_id": matched_bet_id,
-                    "sportsbook_id": sportsbook_id,
+                    "sportsbook_id": back_sportsbook_id,
                     "sport_id": sport_id,
                     "bet_type": "Back",
                     "stake": back_stake,
@@ -180,7 +184,7 @@ elif menu == "Log a Bet":
                 # Insert Lay Bet
                 supabase.table("bets").insert({
                     "matched_bet_id": matched_bet_id,
-                    "sportsbook_id": sportsbook_id,
+                    "sportsbook_id": lay_sportsbook_id,
                     "sport_id": sport_id,
                     "bet_type": "Lay",
                     "stake": lay_stake,
