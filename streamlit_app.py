@@ -68,48 +68,60 @@ if menu == "Dashboard":
 elif menu == "Log a Bet":
     st.title("Log a Bet")
 
-    # Input form for matched betting
     bet_type = st.selectbox("Bet Type", ["Regular", "Matched", "Dutching"])
 
     if bet_type == "Matched":
-        # Back Bet (Bookie) section
+        # Input fields for Back Bet
         st.subheader("Back Bet (Bookie)")
         back_stake = st.number_input("Back stake", min_value=0.0, step=0.01, format="%.2f")
         back_odds = st.number_input("Back odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
         back_commission = st.number_input("Back commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
         stake_returned = st.checkbox("Stake returned", value=False)
 
-        # Lay Bet (Betting Exchange) section
+        # Input fields for Lay Bet
         st.subheader("Lay Bet (Betting Exchange)")
         lay_odds = st.number_input("Lay odds (decimal)", min_value=1.0, step=0.01, format="%.2f")
         lay_commission = st.number_input("Lay commission (%)", min_value=0.0, max_value=100.0, step=0.1, format="%.1f")
-        lay_stake = st.number_input("Lay stake (auto-calculated below)", min_value=0.0, step=0.01, format="%.2f", disabled=True)
 
-        # Button to calculate lay stake
+        # Calculate Lay Stake
         if st.button("Calculate Lay Stake"):
-            # Formula to calculate lay stake
             lay_stake = back_stake * (back_odds - (1 if stake_returned else 0)) / (lay_odds - 1)
             st.write(f"Calculated Lay Stake: **${lay_stake:.2f}**")
 
-            # Calculate the net profit/loss
+            # Calculate Profit/Loss
             back_profit = (back_stake * back_odds - back_stake) * (1 - back_commission / 100)
             lay_liability = lay_stake * (lay_odds - 1)
             lay_profit = lay_stake * (1 - lay_commission / 100)
             net_profit = back_profit - lay_liability if lay_stake > 0 else 0.0
-
-            # Display calculated profit/loss
             st.write(f"Net Profit: **${net_profit:.2f}**")
 
-        # Allow submission of the matched bet
+        # Submit Matched Bet
         if st.button("Submit Matched Bet"):
-            # Save matched bet details to the database
+            # Generate a unique ID for the matched bet
+            matched_bet_id = supabase.table("bets").select("MAX(id)").execute().data[0]["max"] + 1
+
+            # Insert Back Bet
             supabase.table("bets").insert({
-                "bet_type": "Matched",
+                "matched_bet_id": matched_bet_id,
+                "bet_type": "Back",
                 "stake": back_stake,
                 "odds": back_odds,
+                "commission": back_commission,
                 "outcome": "Pending",
-                "profit_loss": net_profit
+                "profit_loss": net_profit  # Initially calculated here
             }).execute()
+
+            # Insert Lay Bet
+            supabase.table("bets").insert({
+                "matched_bet_id": matched_bet_id,
+                "bet_type": "Lay",
+                "stake": lay_stake,
+                "odds": lay_odds,
+                "commission": lay_commission,
+                "outcome": "Pending",
+                "profit_loss": -lay_liability  # Initially negative liability
+            }).execute()
+
             st.success("Matched Bet logged successfully!")
     else:
         st.error("Please add sportsbooks and sports in the Settings menu first!")
